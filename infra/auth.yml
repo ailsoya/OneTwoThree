@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cognito User Pool with Hosted UI and Google IdP
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: demo
+  CognitoDomainPrefix:
+    Type: String
+    Default: onetwothree-ailsoya
+  GoogleClientId:
+    Type: String
+    Default: 591322994407-odktktsc7ha5noln42fhgri3unsitdsi.apps.googleusercontent.com
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+  FrontendDomain:
+    Type: String
+    Default: https://d1djelu0zqsdab.cloudfront.net
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: demo-users
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "openid email profile"
+      AttributeMapping:
+        email: email
+        email_verified: email_verified
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref UserPool
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdentityProvider
+    Properties:
+      ClientName: demo-frontend
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+      CallbackURLs:
+        - !Sub "${FrontendDomain}/auth/callback/"
+        - "http://localhost:3000/auth/callback/"
+        - "http://localhost:5173/auth/callback/"
+      LogoutURLs:
+        - !Sub "${FrontendDomain}/"
+        - "http://localhost:3000/"
+        - "http://localhost:5173/"
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  CognitoDomain:
+    Value: !Sub "https://${CognitoDomainPrefix}.auth.us-east-1.amazoncognito.com"
